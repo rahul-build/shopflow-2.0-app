@@ -1,0 +1,78 @@
+
+services:
+  backend:
+    image: rahul569/shopflow-backend:1.0.0-alpine
+    restart: unless-stopped
+
+    ports:
+      - "3001:3000"
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: shopflow
+      DB_USER: shopflow_user
+
+    cpus: 1.0
+    mem_limit: 512m
+    stop_grace_period: 30s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - shopflow
+
+  worker:
+    image: shopflow-backend:worker-health-test
+    command: ["node", "src/worker/worker.js"]
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: shopflow
+      DB_USER: shopflow_user
+      WORKER_PORT: "3001"
+      WORKER_HEARTBEAT_TIMEOUT_MS: "60000"
+
+    cpus: 0.5
+    mem_limit: 256m
+    stop_grace_period: 60s
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - shopflow
+
+networks:
+  shopflow:
+    external: true
+    name: shopflow-2.0-network
